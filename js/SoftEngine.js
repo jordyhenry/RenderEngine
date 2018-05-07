@@ -11,9 +11,10 @@ var SoftEngine;
 	SoftEngine.Camera = Camera;
 
 	var Mesh =(function () {
-		function Mesh(name, verticesCount){
+		function Mesh(name, verticesCount, facesCount){
 			this.name = name;
 			this.Vertices = new Array(verticesCount);
+			this.Faces = new Array(facesCount);
 			this.Rotation = BABYLON.Vector3.Zero();
 			this.Position = BABYLON.Vector3.Zero();
 		}
@@ -87,6 +88,54 @@ var SoftEngine;
 				this.putPixel(point.x, point.y, new BABYLON.Color4(1, 1, 0, 1));
 			}
 		};
+		
+		//Draw line between two point recursively
+		Device.prototype.drawLine = function(point0, point1)
+		{
+			var dist = point1.subtract(point0).length();
+
+			//If the distance between the 2 points is less than 2 pixels
+			//we're exiting
+			if(dist < 2)
+				return;
+
+			//Find the middle point between first & second point
+			var middlePoint = point0.add((point1.subtract(point0)).scale(0.5));
+			//We draw the point on screen
+			this.drawPoint(middlePoint);
+			//Recursive algorithm launched between first & middle point
+			this.drawLine(point0, middlePoint);
+			this.drawLine(middlePoint, point1);
+		};
+
+		//Draw line between two points using Bresenham's line algorithm
+		//https://en.wikipedia.org/wiki/Bresenham's_line_algorithm
+		Device.prototype.drawBline = function (point0, point1)
+		{
+			
+			var x0 = point0.x >> 0;
+			var y0 = point0.y >> 0;
+
+			var x1 = point1.x >> 0;
+			var y1 = point1.y >> 0;
+
+			var dx = Math.abs(x1 - x0);
+			var dy = Math.abs(y1 - y0);
+
+			var sx = (x0 < x1) ? 1 : -1;
+			var sy = (y0 < y1) ? 1 : -1;
+			var err = dx-dy;
+
+			while(true)
+			{
+				this.drawPoint(new BABYLON.Vector2(x0, y0));
+				if((x0 == x1) && (y0 ==y1)) break;
+
+				var e2 = 2 * err;
+				if(e2 > -dy) { err -= dy; x0 += sx; }
+				if(e2 < dx) { err += dx; y0 += sy ;}
+			}
+		};
 
 		//The main method of the engine that re-compute each vertex projection
 		// during each frame
@@ -110,6 +159,7 @@ var SoftEngine;
 
 				var transformMatrix = worldMatrix.multiply(viewMatrix).multiply(projectionMatrix);
 
+				//DRAWING THE VERTICES
 				for(var indexVertices = 0; indexVertices < cMesh.Vertices.length; indexVertices++)
 				{
 					//First, we project the 3D coordinates into the 2D space
@@ -117,9 +167,35 @@ var SoftEngine;
 					//The we can draw on screen
 					this.drawPoint(projectedPoint);
 				}
+
+				//DRAWING THE EDGES
+				for(var i = 0; i < cMesh.Vertices.length -1; i++)
+				{
+					var point0 = this.project(cMesh.Vertices[i], transformMatrix);
+					var point1 = this.project(cMesh.Vertices[i + 1], transformMatrix);
+					this.drawLine(point0, point1);
+				}
+				
+				//DRAWING THE FACES
+				for (var indexFaces = 0; indexFaces < cMesh.Faces.length; indexFaces++) 
+				{
+					var currentFace = cMesh.Faces[indexFaces];
+					var vertexA = cMesh.Vertices[currentFace.A];
+					var vertexB = cMesh.Vertices[currentFace.B];
+					var vertexC = cMesh.Vertices[currentFace.C];
+
+					var pixelA = this.project(vertexA, transformMatrix);
+					var pixelB = this.project(vertexB, transformMatrix);
+					var pixelC = this.project(vertexC, transformMatrix);
+
+					this.drawBline(pixelA, pixelB);
+					this.drawBline(pixelB, pixelC);
+					this.drawBline(pixelC, pixelA);
+				}
 			}
 		};
 		return Device;
 	})();
 	SoftEngine.Device = Device;
+	
 })(SoftEngine || (SoftEngine = {}));
