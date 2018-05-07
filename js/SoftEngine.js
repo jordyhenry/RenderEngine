@@ -159,6 +159,7 @@ var SoftEngine;
 
 				var transformMatrix = worldMatrix.multiply(viewMatrix).multiply(projectionMatrix);
 
+				/*
 				//DRAWING THE VERTICES
 				for(var indexVertices = 0; indexVertices < cMesh.Vertices.length; indexVertices++)
 				{
@@ -167,14 +168,17 @@ var SoftEngine;
 					//The we can draw on screen
 					this.drawPoint(projectedPoint);
 				}
+				*/
 
-				//DRAWING THE EDGES
+				/*
+				//DRAWING LINES
 				for(var i = 0; i < cMesh.Vertices.length -1; i++)
 				{
 					var point0 = this.project(cMesh.Vertices[i], transformMatrix);
 					var point1 = this.project(cMesh.Vertices[i + 1], transformMatrix);
 					this.drawLine(point0, point1);
 				}
+				*/
 				
 				//DRAWING THE FACES
 				for (var indexFaces = 0; indexFaces < cMesh.Faces.length; indexFaces++) 
@@ -192,8 +196,86 @@ var SoftEngine;
 					this.drawBline(pixelB, pixelC);
 					this.drawBline(pixelC, pixelA);
 				}
+				
 			}
 		};
+
+		// Loading the JSON file in an asynchronous manner and calling
+		// back with the function passer providing the array of meshes loaded
+		Device.prototype.LoadJSONFileAsync = function (filename, callback)
+		{
+			var jsonObject = {};
+			var xmlhttp = new XMLHttpRequest();
+			xmlhttp.open("GET", filename, true);
+			var that = this;
+			xmlhttp.onreadystatechange = function() {
+				if(xmlhttp.readyState == 4 && xmlhttp.status == 200){
+					jsonObject = JSON.parse(xmlhttp.responseText);
+					callback(that.CreateMeshesFromJSON(jsonObject));
+				}
+			}
+			xmlhttp.send(null);
+		};
+
+		Device.prototype.CreateMeshesFromJSON = function(jsonObject)
+		{
+			var meshes = [];
+			for(var meshIndex = 0; meshIndex < jsonObject.meshes.length; meshIndex++){
+				var verticesArray = jsonObject.meshes[meshIndex].vertices;
+				// Faces
+				var indicesArray = jsonObject.meshes[meshIndex].indices;
+
+				var uvCount = jsonObject.meshes[meshIndex].uvCount;
+				var verticesStep = 1;
+
+				//Depending of the number of textures coordinates per vertex
+				// we're jumping in the vertices array by 6, 8 & 10 windows frame
+				switch(uvCount){
+					case 0:
+						verticesStep = 6;
+						break;
+					case 1:
+						verticesStep = 8;
+						break;
+					case 2:
+						verticesStep = 10;
+						break;
+				}
+
+				// the number of interesting vertices information for us
+				var verticesCount = verticesArray.length / verticesStep;
+				// number of faces is logically the size of the array divided by 3 (A, B, C)
+				var facesCount = indicesArray.length / 3;
+				var mesh = new SoftEngine.Mesh(jsonObject.meshes[meshIndex].name, verticesCount, facesCount);
+
+				// Filling the vertices array of our mesh fist
+				for(var index = 0; index < verticesCount; index++){
+					var x = verticesArray[index * verticesStep];
+					var y = verticesArray[index * verticesStep + 1];
+					var z = verticesArray[index * verticesStep + 2];
+					mesh.Vertices[index] = new BABYLON.Vector3(x, y, z);
+				}
+
+				// Then filling the Faces array
+				for(var index = 0; index < facesCount; index++){
+					var a = indicesArray[index * 3];
+					var b = indicesArray[index * 3 + 1];
+					var c = indicesArray[index * 3 + 2];
+					mesh.Faces[index] = {
+						A : a,
+						B : b,
+						C : c
+					};
+				}
+
+				//Getting the position you've set in Blender
+				var position = jsonObject.meshes[meshIndex].position;
+				mesh.Position = new BABYLON.Vector3(position[0], position[1], position[2]);
+				meshes.push(mesh);
+			}
+			return meshes;
+		};
+
 		return Device;
 	})();
 	SoftEngine.Device = Device;

@@ -9,10 +9,20 @@ document.addEventListener("DOMContentLoaded", init, false);
 function init()
 {
 	canvas = document.getElementById("frontBuffer");
-	mesh = new SoftEngine.Mesh("Cube", 8, 12);
-	meshes.push(mesh);
 	mera = new SoftEngine.Camera();
 	device = new SoftEngine.Device(canvas);
+	mera.Position = new BABYLON.Vector3(0, 0, 10);
+	mera.Target = new BABYLON.Vector3(0, 0, 0);
+
+	//drawCube();
+	//device.LoadJSONFileAsync("/mesh/monkey2.babylon", loadJSONCompleted);
+	device.LoadJSONFileAsync("/mesh/sphere.babylon", loadJSONCompleted);
+}
+
+function drawCube()
+{
+	mesh = new SoftEngine.Mesh("Cube", 8, 12);
+	meshes.push(mesh);
 
 	mesh.Vertices[0] = new BABYLON.Vector3(-1, 1, 1);
 	mesh.Vertices[1] = new BABYLON.Vector3(1, 1, 1);
@@ -37,10 +47,13 @@ function init()
 	mesh.Faces[10] = { A : 4, B : 5, C : 6 };
 	mesh.Faces[11] = { A : 4, B : 6, C : 7 };
 
-	mera.Position = new BABYLON.Vector3(0, 0, 10);
-	mera.Target = new BABYLON.Vector3(0, 0, 0);
+	requestAnimationFrame(drawingLoop);
+}
 
-	//Caling the HTML5 rendering loop
+function loadJSONCompleted(meshesLoaded)
+{
+	meshes = meshesLoaded;
+	// Calling the HTML5 rendering loop
 	requestAnimationFrame(drawingLoop);
 }
 
@@ -49,9 +62,11 @@ function drawingLoop()
 {
 	device.clear();
 
-	//rotating slightly the cube during each frame rendered
-	mesh.Rotation.x += 0.01;
-	mesh.Rotation.y += 0.01;
+	for(var i  = 0; i < meshes.length; i++){
+		//rotating slightly the cube during each frame rendered
+		meshes[i].Rotation.x += 0.01;
+		meshes[i].Rotation.y += 0.01;
+	}
 
 	//Doing the various matrix operations
 	device.render(mera, meshes);
