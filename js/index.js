@@ -15,8 +15,9 @@ function init()
 	mera.Target = new BABYLON.Vector3(0, 0, 0);
 
 	//drawCube();
-	//device.LoadJSONFileAsync("/mesh/monkey2.babylon", loadJSONCompleted);
-	device.LoadJSONFileAsync("/mesh/sphere.babylon", loadJSONCompleted);
+	//drawTriangle();
+	device.LoadJSONFileAsync("/mesh/monkey.babylon", loadJSONCompleted);
+	//device.LoadJSONFileAsync("/mesh/sphere.babylon", loadJSONCompleted);
 }
 
 function drawCube()
@@ -46,6 +47,20 @@ function drawCube()
 	mesh.Faces[9] = { A : 0, B : 4, C : 7 };
 	mesh.Faces[10] = { A : 4, B : 5, C : 6 };
 	mesh.Faces[11] = { A : 4, B : 6, C : 7 };
+
+	requestAnimationFrame(drawingLoop);
+}
+
+function drawTriangle()
+{
+	mesh = new SoftEngine.Mesh("Tri", 3, 1);
+	meshes.push(mesh);
+
+	mesh.Vertices[0] = new BABYLON.Vector3(0, 1, 0);
+	mesh.Vertices[1] = new BABYLON.Vector3(1, 0, 0);
+	mesh.Vertices[2] = new BABYLON.Vector3(-1, -1, 0);
+
+	mesh.Faces[0] = { A : 0, B : 1, C : 2 };
 
 	requestAnimationFrame(drawingLoop);
 }
