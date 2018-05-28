@@ -342,11 +342,14 @@ var SoftEngine;
 			var z1 = this.interpolate(pa.z, pb.z, gradient1);
 			var z2 = this.interpolate(pc.z, pd.z, gradient2);
 
+			var snl = this.interpolate(data.ndotla, data.ndotlb, gradient1);
+			var enl = this.interpolate(data.ndotlc, data.ndotld, gradient2);
+
 			// drawing a line from left (sx) to right (ex)
 			for(var x = sx; x < ex; x ++){
 				var gradient = (x - sx) / (ex - sx);
 				var z = this.interpolate(z1, z2, gradient);
-				var ndotl = data.ndotla;
+				var ndotl = this.interpolate(snl, enl, gradient);
 				//changing the color value using the cosine of the angle
 				//between the light vector and the normal vector
 				
@@ -380,17 +383,15 @@ var SoftEngine;
 			var p2 = v2.Coordinates;
 			var p3 = v3.Coordinates;
 
-			// normal face's is the average normal between each vertex's normal
-			//computing also the center point of the face
-			var vnFace = (v1.Normal.add(v2.Normal.add(v3.Normal))).scale(1 / 3);
-			var centerPoint = (v1.WoorldCoordinates.add(v2.WoorldCoordinates.add(v3.WoorldCoordinates))).scale(1 / 3);
 			// Light position
 			var lightPos = new BABYLON.Vector3(0, 10, 10);
 			//computing the cos of the angle between the light vector and the normal vector
 			// it will return a value between 0 and 1 that will be used as the intensity of the color
-			var ndotl = this.computeNDotL(centerPoint, vnFace, lightPos);
+			var nl1 = this.computeNDotL(v1.WoorldCoordinates, v1.Normal, lightPos);
+			var nl2 = this.computeNDotL(v2.WoorldCoordinates, v2.Normal, lightPos);
+			var nl3 = this.computeNDotL(v3.WoorldCoordinates, v3.Normal, lightPos);
 
-			var data = { ndotla : ndotl };
+			var data = {};
 
 			// inverse slopes
 			var dP1P2; var dP1P3;
@@ -423,10 +424,18 @@ var SoftEngine;
 					data.currentY = y;
 
     				if(y < p2.y){
-						//this.processScanLine(y, p1, p3, p1, p2, color);
+						data.ndotla = nl1;
+						data.ndotlb = nl3;
+						data.ndotlc = nl1;
+						data.ndotld = nl2;
+
 						this.processScanLine(data, v1, v3, v1, v2, color);
     				}else{
-						//this.processScanLine(y, p1, p3, p2, p3, color);
+						data.ndotla = nl1;
+						data.ndotlb = nl3;
+						data.ndotlc = nl2;
+						data.ndotld = nl3;
+
 						this.processScanLine(data, v1, v3, v2, v3, color);
     				}
     			}
@@ -440,10 +449,18 @@ var SoftEngine;
 					data.currentY = y;
 
     				if(y < p2.y){
-						//this.processScanLine(y, p1, p2, p1, p3, color);
+						data.ndotla = nl1;
+						data.ndotlb = nl2;
+						data.ndotlc = nl1;
+						data.ndotld = nl3;
+
 						this.processScanLine(data, v1, v2, v1, v3, color);
     				}else{
-						//this.processScanLine(y, p2, p3, p1, p3, color);
+						data.ndotla = nl2;
+						data.ndotlb = nl3;
+						data.ndotlc = nl1;
+						data.ndotld = nl3;
+
 						this.processScanLine(data, v2, v3, v1, v3, color);
     				}
     			}
