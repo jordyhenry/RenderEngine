@@ -5,7 +5,7 @@ https://www.davrous.com/2013/06/13/tutorial-series-learning-how-to-write-a-3d-so
 This render engine runs directly on CPU, wich its not the recommended way, but
 for didactic reasons, its easier to read and understand the process.
 
-Dont forget to serve the index page with some server, this way you can load the mesh files from your local folder,
+Dont forget to serve the index page with some server service, in order to load the mesh files from your local folder,
 
 Im using 'http-server', wich is a nodejs server easy to install and run, that you can find here 
 

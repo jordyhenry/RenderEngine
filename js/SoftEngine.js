@@ -81,16 +81,28 @@ var SoftEngine;
 
 		//Project takes some 3D coordinates and transform them in 2D coordinates
 		//using the transformation matrix
-		Device.prototype.project = function(coord, transMat)
+		//It also transform the same coordinates and the normal to the vertex
+		//in the 3D world
+		Device.prototype.project = function(vertex, transMat, world)
 		{
-			var point = BABYLON.Vector3.TransformCoordinates(coord, transMat);
+			//transforming the coordinates into 2D space
+			var point2d = BABYLON.Vector3.TransformCoordinates(vertex.Coordinates, transMat);
+			//transforming the coordinates & the normal to the vertex in the 3D world
+			var point3DWorld = BABYLON.Vector3.TransformCoordinates(vertex.Coordinates, world);
+			var normal3DWorld = BABYLON.Vector3.TransformCoordinates(vertex.Normal, world);
+
 			//The transformed coordinates will be based on coordinates system
 			//starting on the center of the screen. But drawing on screen normally starts
 			//from top left. We then need to transform them again to have x:, y: on top left
-			var x = point.x * this.workingWidth + this.workingWidth / 2.0;
+			var x = point2d.x * this.workingWidth + this.workingWidth / 2.0;
 			//console.log(point.x * this.workingWidth + this.workingWidth / 2.0);
-			var y = -point.y * this.workingHeight + this.workingHeight / 2.0;
-			return (new BABYLON.Vector3(x, y, point.z));
+			var y = -point2d.y * this.workingHeight + this.workingHeight / 2.0;
+			
+			return ({
+				Coordinates : new BABYLON.Vector3(x, y, point2d.z),
+				Normal : normal3DWorld,
+				WoorldCoordinates : point3DWorld
+			});
 		};
 
 		//drawPoint call putPixel but does the clipping operation before
@@ -191,11 +203,11 @@ var SoftEngine;
 					var vertexB = cMesh.Vertices[currentFace.B];
 					var vertexC = cMesh.Vertices[currentFace.C];
 
-					var pixelA = this.project(vertexA, transformMatrix);
-					var pixelB = this.project(vertexB, transformMatrix);
-					var pixelC = this.project(vertexC, transformMatrix);
+					var pixelA = this.project(vertexA, transformMatrix, worldMatrix);
+					var pixelB = this.project(vertexB, transformMatrix, worldMatrix);
+					var pixelC = this.project(vertexC, transformMatrix, worldMatrix);
 
-					var rgb = 0.25 + ((indexFaces % cMesh.Faces.length) / cMesh.Faces.length) * 0.75;
+					var rgb = 1;
 					var color = new BABYLON.Color4(rgb, rgb, rgb, 1);
 					this.drawTriangle(pixelA, pixelB, pixelC, color);
 					//this.drawBline(pixelA, pixelB);
@@ -258,7 +270,16 @@ var SoftEngine;
 					var x = verticesArray[index * verticesStep];
 					var y = verticesArray[index * verticesStep + 1];
 					var z = verticesArray[index * verticesStep + 2];
-					mesh.Vertices[index] = new BABYLON.Vector3(x, y, z);
+					//Loading the vertex normal exported by Blender
+					var nx = verticesArray[index * verticesStep + 3];
+					var ny = verticesArray[index * verticesStep + 4];
+					var nz = verticesArray[index * verticesStep + 5];
+
+					mesh.Vertices[index] = {
+						Coordinates : new BABYLON.Vector3(x, y, z),
+						Normal : new BABYLON.Vector3(nx, ny, nz),
+						WoorldCoordinates : null
+					};
 				}
 
 				// Then filling the Faces array
@@ -301,15 +322,20 @@ var SoftEngine;
 		//Drawing line between 2 points from left to right
 		// papb _> pcpd
 		//pa, pb, pc, pd must then be sorted before
-		Device.prototype.processScanLine = function (y, pa, pb, pc, pd, color)
+		Device.prototype.processScanLine = function (data, va, vb, vc, vd, color)
 		{
+			var pa = va.Coordinates;
+			var pb = vb.Coordinates;
+			var pc = vc.Coordinates;
+			var pd = vd.Coordinates;
+
 			//Thanks to current Y, we can compute the gradient to compute other values like
 			//the starting X (sx) and the ending X (ex) to draw between
 			// if pa.Y == pb.Y or pc.Y == pd.Y, gradient is forced to 1
-			var gradient1 = pa.y != pb.y ? (y - pa.y) / (pb.y - pa.y) : 1;
+			var gradient1 = pa.y != pb.y ? (data.currentY - pa.y) / (pb.y - pa.y) : 1;
 			var sx = this.interpolate(pa.x, pb.x, gradient1) >> 0;
 
-			var gradient2 = pc.y != pd.y ? (y - pc.y) / (pd.y - pc.y) : 1;
+			var gradient2 = pc.y != pd.y ? (data.currentY - pc.y) / (pd.y - pc.y) : 1;
 			var ex = this.interpolate(pc.x, pd.x, gradient2) >> 0;
 
 			//starting Z & ending Z
@@ -320,30 +346,51 @@ var SoftEngine;
 			for(var x = sx; x < ex; x ++){
 				var gradient = (x - sx) / (ex - sx);
 				var z = this.interpolate(z1, z2, gradient);
-				this.drawPoint(new BABYLON.Vector3(x, y, z), color);
+				var ndotl = data.ndotla;
+				//changing the color value using the cosine of the angle
+				//between the light vector and the normal vector
+				
+				var newColor = new BABYLON.Color4(color.r * ndotl, color.g * ndotl, color.b * ndotl, 1);
+				this.drawPoint(new BABYLON.Vector3(x, data.currentY, z), newColor);
 			}
 		};
 
-		Device.prototype.drawTriangle = function (p1, p2, p3, color)
+		Device.prototype.drawTriangle = function (v1, v2, v3, color)
 		{
 			//Sorting the point in order to always have this order on screen p1, p2 & p3
 			// with p1 always up(thus having the Y the lowest possible to be near to the top screen)	
 			// then p2 between p1 & p3
-			if(p2.y < p1.y){
-				var temp = p1;
-				p1 = p2;
-				p2 = temp;
+			if(v2.Coordinates.y < v1.Coordinates.y){
+				var temp = v1;
+				v1 = v2;
+				v2 = temp;
 			}
-			if(p3.y < p1.y){
-				var temp = p1;
-				p1 = p3;
-				p3 = temp;
+			if(v3.Coordinates.y < v1.Coordinates.y){
+				var temp = v1;
+				v1 = v3;
+				v3 = temp;
 			}
-			if(p3.y < p2.y){
-				var temp = p2;
-				p2 = p3;
-				p3 = temp;
+			if(v3.Coordinates.y < v2.Coordinates.y){
+				var temp = v2;
+				v2 = v3;
+				v3 = temp;
 			}
+
+			var p1 = v1.Coordinates;
+			var p2 = v2.Coordinates;
+			var p3 = v3.Coordinates;
+
+			// normal face's is the average normal between each vertex's normal
+			//computing also the center point of the face
+			var vnFace = (v1.Normal.add(v2.Normal.add(v3.Normal))).scale(1 / 3);
+			var centerPoint = (v1.WoorldCoordinates.add(v2.WoorldCoordinates.add(v3.WoorldCoordinates))).scale(1 / 3);
+			// Light position
+			var lightPos = new BABYLON.Vector3(0, 10, 10);
+			//computing the cos of the angle between the light vector and the normal vector
+			// it will return a value between 0 and 1 that will be used as the intensity of the color
+			var ndotl = this.computeNDotL(centerPoint, vnFace, lightPos);
+
+			var data = { ndotla : ndotl };
 
 			// inverse slopes
 			var dP1P2; var dP1P3;
@@ -373,10 +420,14 @@ var SoftEngine;
     		//P3
     		if(right || (!left && dP1P2 > dP1P3)) {
     			for(var y = p1.y >> 0; y <= p3.y >> 0; y++){
+					data.currentY = y;
+
     				if(y < p2.y){
-    					this.processScanLine(y, p1, p3, p1, p2, color);
+						//this.processScanLine(y, p1, p3, p1, p2, color);
+						this.processScanLine(data, v1, v3, v1, v2, color);
     				}else{
-    					this.processScanLine(y, p1, p3, p2, p3, color);
+						//this.processScanLine(y, p1, p3, p2, p3, color);
+						this.processScanLine(data, v1, v3, v2, v3, color);
     				}
     			}
     		}
@@ -386,13 +437,29 @@ var SoftEngine;
     		//   P3
     		else{
     			for(var y = p1.y >> 0; y <= p3.y >> 0; y++){
+					data.currentY = y;
+
     				if(y < p2.y){
-    					this.processScanLine(y, p1, p2, p1, p3, color);
+						//this.processScanLine(y, p1, p2, p1, p3, color);
+						this.processScanLine(data, v1, v2, v1, v3, color);
     				}else{
-    					this.processScanLine(y, p2, p3, p1, p3, color);
+						//this.processScanLine(y, p2, p3, p1, p3, color);
+						this.processScanLine(data, v2, v3, v1, v3, color);
     				}
     			}
     		}
+		};
+
+		//Compute the cosine of the angle between the light vector and the normal vector
+		// Returns a value between  and 1
+		Device.prototype.computeNDotL = function (vertex, normal, lightPosition)
+		{
+			var lightDirection = lightPosition.subtract(vertex);
+
+			normal.normalize();
+			lightDirection.normalize();
+
+			return Math.max(0, BABYLON.Vector3.Dot(normal, lightDirection));
 		};
 
 		return Device;
